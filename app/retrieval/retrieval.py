@@ -9,32 +9,18 @@ from langchain.agents import create_agent
 
 load_dotenv()
 
-# PGVector connection string uses SQLAlchemy format: postgresql+psycopg://...
-# psycopg.connect needs standard format: postgresql://...
-#_raw_conn = os.getenv("PG_CONNECTION_STRING", "").replace("postgresql+psycopg", "postgresql")
-
 # Use this single source of truth for all connections in this file
 _raw_conn_string = os.getenv("PG_CONNECTION_STRING", "")
 
-# This cleans the string for direct psycopg usage
-# It removes '+psycopg2' or any similar suffix to ensure compatibility
 _raw_conn = _raw_conn_string.replace("+psycopg2", "")
 
 
-# Patterns that signal a precise keyword lookup is needed
-_KEYWORD_PATTERNS = [
-   r"[A-Z]{2,}-\d{4}-\w+",   # policy/ticket codes: POL-2024-HR-007
-   r"\b[A-Z]{2,5}\b",         # short uppercase abbreviations: LTA, CTC, ESI
-   r"\d{6,}",                 # long numeric IDs / employee numbers
-]
-_KEYWORD_RE = re.compile("|".join(_KEYWORD_PATTERNS))
-
-
 @tool
-def fts_search(query: str, k: int = 5, collection_name: str = "regulatory_compliance_system")-> list[dict]:
-    """
-    Performs a Full-Text Search (FTS) on the regulatory compliance documents using PostgreSQL.
-    Useful for finding exact keyword matches or specific terminology.
+def fts_search(query: str, k: int = 6, collection_name: str = "regulatory_compliance_system")-> list[dict]:
+    """Search for documents containing the exact words or phrases in your query. Best for precise terms, codes, or legal/technical language.
+    use when:
+    when query includes specific keywords, IDs, or technical terms
+    Ideal for filtering before deeper semantic search
     """
     sql = """
        SELECT
@@ -71,36 +57,12 @@ def fts_search(query: str, k: int = 5, collection_name: str = "regulatory_compli
 
 
 @tool
-def hybrid_search(query: str, k: int =5)-> list[dict]:
-    """
-    Performs a hybrid search combining semantic vector search and keyword-based FTS.
-    Uses Reciprocal Rank Fusion (RRF) to merge results and provide the most relevant documents.
-    """
-    print("hybrid-searching.....")
-    vector_store = get_vector_store()
-    vector_docs = vector_store.similarity_search(query, k=k)
-    fts_docs = fts_search.invoke({"query": query, "k": k})
-
-    rrf_scores: dict[str, float] = {}
-    chunk_map: dict[str, dict]= {}
-
-    for rank, doc in enumerate(vector_docs):
-        key = doc.page_content[:120]
-        rrf_scores[key] = rrf_scores.get(key, 0) + 1 / (60 + rank + 1)
-        chunk_map[key] = {"content": doc.page_content, "metadata":doc.metadata}
-
-    for rank, item in enumerate(fts_docs):
-        key = item["content"][:120]
-        rrf_scores[key] = rrf_scores.get(key, 0) + 1 / (60 + rank + 1)
-        chunk_map[key] = {"content": doc.page_content, "metadata":doc.metadata}
-
-    ranked = sorted(rrf_scores.items(), key=lambda x: x[1], reverse=True)
-    return [chunk_map[key] for key, _ in ranked[:k]]
-
-
-@tool
-def vector_search(query: str, k: int = 5)-> list[dict]:
-    """Return the top_k similar document chunks for a given query using semantic vector search.""" 
+def vector_search(query: str, k: int = 6)-> list[dict]:
+    """search based on meaning, not just keywords. Perfect for natural language questions, paraphrased queries, or contextual understanding.
+    use when:
+    Your query is in natural language or vague
+    You want semantic matches rather than exact words
+    """ 
     print("vector-searching.....")   
     vector_store = get_vector_store()
     docs = vector_store.similarity_search(query, k=k)
@@ -109,8 +71,8 @@ def vector_search(query: str, k: int = 5)-> list[dict]:
 
 agent = create_agent(
     model = "google_genai:gemini-3.1-pro-preview",#brain
-    tools = [fts_search, hybrid_search, vector_search],#register the tool with the agent
-    system_prompt = """You are an expert AI compliance assistant designed to support bank compliance officers. Your primary objective is to provide accurate, high-integrity, and fully cited responses to regulatory queries based on official documentation from the RBI, SEBI, and Basel III frameworks.
+    tools = [fts_search, vector_search],#register the tool with the agent
+    system_prompt = """You are an expert AI compliance assistant designed to support bank compliance officers. Your primary objective is to provide accurate, high-integrity, and fully cited responses to regulatory queries based on tools response.
 
 ### Operational Protocol
 
@@ -123,7 +85,7 @@ To ensure the highest level of accuracy and regulatory compliance, you must stri
 
 **Tone:** Maintain a professional, objective, and authoritative tone suitable for legal and compliance environments.
 **Accuracy:** If the retrieved documents do not contain sufficient information to answer the query, explicitly state that the information is unavailable in the current regulatory database rather than attempting to infer or guess.
-**Structure:** Use clear headings, bullet points, and tables (where applicable) to make complex regulatory requirements easy to navigate.
+**Structure:** Use clear headings and bullet points to make complex regulatory requirements easy to navigate.
 **Integrity:** Always prioritize the explicit text of the regulations. If there is ambiguity in a regulation, reflect that ambiguity rather than providing a definitive interpretation that could lead to non-compliance.
 
 ---

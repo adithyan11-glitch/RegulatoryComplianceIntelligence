@@ -124,6 +124,11 @@ files = status.json().get("files", []) if status and status.status_code == 200 e
 if not files:
     st.info("No documents ingested yet.")
 else:
+    # Button to open chatbot if documents exist
+    if st.button("💬 Go to Chatbot"):
+        st.session_state.go_to_chatbot = True
+        st.rerun()
+    st.divider()
     for fname in files:
         col1, col2 = st.columns([4, 1])
         col1.write(fname)
