@@ -1,6 +1,5 @@
-def main():
-    print("Hello from regulatory-compliance-system!")
+from fastapi import FastAPI
+from app.routes.routes import router
 
-
-if __name__ == "__main__":
-    main()
+app = FastAPI(title="RAG Ingestion API")
+app.include_router(router)
