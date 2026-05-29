@@ -28,10 +28,9 @@ def api_delete(path):
     try:
         return requests.delete(f"{API}{path}", timeout=10)
     except ConnectionError:
-        return None
+        return "Service is temporarily unavailable. Please try again in a few moments."
 
 
-# --- Chatbot page ---
 # --- Chatbot page ---
 if st.session_state.get("go_to_chatbot"):
     st.title("💬 Chatbot")
@@ -76,68 +75,65 @@ if st.session_state.get("go_to_chatbot"):
                         "tags": ["chatbot", "retrieval"],
                     },
                 )
-
                 ai_message = response["messages"][-1].text
-
                 st.markdown(ai_message)
 
         # Store assistant response
         st.session_state.messages.append(
             AIMessage(content=ai_message)
         )
-
     st.stop()
 
 # --- Main page ---
-st.title("📄 PDF Upload & Ingestion")
+st.title("Regulatory Compliance Intelligence System")
+st.subheader("📄 Upload Document")
 
 # Backend status check
 status = api_get("/documents")
 if status is None:
-    st.error("⚠️ Backend not reachable. Run: `uvicorn main:app --reload`")
-
-# Upload section
-uploaded_file = st.file_uploader("Choose a PDF", type=["pdf"])
-if uploaded_file:
-    if st.button("Upload & Ingest"):
-        with st.spinner("Ingesting..."):
-            res = api_post(
-                "/upload-and-ingest",
-                files={"file": (uploaded_file.name, uploaded_file.getvalue(), "application/pdf")},
-            )
-        if res is None:
-            st.error("Backend not reachable.")
-        elif res.status_code == 200:
-            data = res.json()
-            st.success(f"✅ {data['chunks']} chunks stored.")
-            st.session_state.go_to_chatbot = True
-            st.rerun()
-        else:
-            st.error(res.json().get("detail", "Upload failed."))
-
-st.divider()
-
-# Manage existing documents
-st.subheader("Manage Documents")
-files = status.json().get("files", []) if status and status.status_code == 200 else []
-
-if not files:
-    st.info("No documents ingested yet.")
+    st.error("⚠️We're having trouble connecting to the service right now. Please try again later.")
 else:
-    # Button to open chatbot if documents exist
-    if st.button("💬 Go to Chatbot"):
-        st.session_state.go_to_chatbot = True
-        st.rerun()
-    st.divider()
-    for fname in files:
-        col1, col2 = st.columns([4, 1])
-        col1.write(fname)
-        if col2.button("🗑 Delete", key=fname):
-            r = api_delete(f"/delete/{fname}")
-            if r is None:
-                st.error("Backend not reachable.")
-            elif r.status_code == 200:
-                st.success(f"{fname} deleted.")
+    # Upload section
+    uploaded_file = st.file_uploader("Choose a PDF", type=["pdf"])
+    if uploaded_file:
+        if st.button("Upload & Ingest"):
+            with st.spinner("Ingesting..."):
+                res = api_post(
+                    "/upload-and-ingest",
+                    files={"file": (uploaded_file.name, uploaded_file.getvalue(), "application/pdf")},
+                )
+            if res is None:
+                st.error("We couldn't process your document right now.  Please try again later.")
+            elif res.status_code == 200:
+                data = res.json()
+                st.success(f"✅ {data['chunks']} chunks stored.")
+                st.session_state.go_to_chatbot = True
                 st.rerun()
             else:
-                st.error(r.json().get("detail", "Delete failed."))
+                st.error("Upload failed. Please try again later.")
+    st.divider()
+
+    # Manage existing documents
+    st.subheader("Manage Documents")
+    files = status.json().get("files", []) if status and status.status_code == 200 else []
+
+    if not files:
+        st.info("No documents uploaded yet.")
+    else:
+        # Button to open chatbot if documents exist
+        if st.button("💬 Go to Chatbot"):
+            st.session_state.go_to_chatbot = True
+            st.rerun()
+        st.divider()
+        for fname in files:
+            col1, col2 = st.columns([4, 1])
+            col1.write(fname)
+            if col2.button("🗑 Delete", key=fname):
+                r = api_delete(f"/delete/{fname}")
+                if r is None:
+                    st.error("We couldn't process your document right now. Please try again later.")
+                elif r.status_code == 200:
+                    st.success(f"{fname} deleted.")
+                    st.rerun()
+                else:
+                    st.error("Delete failed. Please try again later.")
