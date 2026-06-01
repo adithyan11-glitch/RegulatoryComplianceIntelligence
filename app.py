@@ -36,9 +36,17 @@ if st.session_state.get("go_to_chatbot"):
     st.title("💬 Chatbot")
     st.success("Document ready! Start chatting below.")
 
-    if st.button("← Back"):
-        st.session_state.go_to_chatbot = False
-        st.rerun()
+    col1, col2 = st.columns([3, 1])
+
+    with col1:
+        if st.button("← Back"):
+            st.session_state.go_to_chatbot = False
+            st.rerun()
+
+    with col2:
+        if st.button("🗑️ Clear Chat"):
+            st.session_state.messages = []
+            st.rerun()
 
     # Chat history
     if "messages" not in st.session_state:
@@ -61,21 +69,31 @@ if st.session_state.get("go_to_chatbot"):
 
         with st.chat_message("assistant"):
             with st.spinner("Thinking..."):
-                response = agent.invoke(
-                    {
-                        "messages": [
-                            {
-                                "role": "user",
-                                "content": prompt,
-                            }
-                        ]
-                    },
-                    config={
-                        "run_name": "streamlit_chatbot",
-                        "tags": ["chatbot", "retrieval"],
-                    },
-                )
-                ai_message = response["messages"][-1].text
+                try:
+                    response = agent.invoke(
+                        {
+                            "messages": [
+                                {
+                                    "role": "user",
+                                    "content": prompt,
+                                }
+                            ]
+                        },
+                        config={
+                            "run_name": "streamlit_chatbot",
+                            "tags": ["chatbot", "retrieval"],
+                        },
+                    )
+
+                    ai_message = response["messages"][-1].text
+
+                except Exception as e:
+                    print(f"Agent Error: {e}")
+
+                    ai_message = (
+                        "⚠️ Sorry, I couldn't access the document right now. "
+                        "Please try again later."
+                    )
                 st.markdown(ai_message)
 
         # Store assistant response
