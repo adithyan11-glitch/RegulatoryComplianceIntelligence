@@ -1,8 +1,14 @@
 import shutil
 from fastapi import APIRouter, UploadFile, File, HTTPException
+from pydantic import BaseModel
 from app.service.service import upload_and_ingest, delete_document, list_documents
+from app.service.query_service import handle_query
 
 router = APIRouter()
+
+
+class QueryRequest(BaseModel):
+    query: str
 
 
 @router.post("/upload-and-ingest")
@@ -28,3 +34,12 @@ async def delete(filename: str):
 @router.get("/documents")
 async def documents():
     return {"files": list_documents()}
+
+
+@router.post("/api/v1/query")
+async def query(request: QueryRequest):
+    try:
+        result = await handle_query(request.query)
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
