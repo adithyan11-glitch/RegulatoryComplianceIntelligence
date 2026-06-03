@@ -52,54 +52,76 @@ if st.session_state.get("go_to_chatbot"):
     if "messages" not in st.session_state:
         st.session_state.messages = []
 
-    # Display chat history
-    for message in st.session_state.messages:
-        role = "user" if isinstance(message, HumanMessage) else "assistant"
+     # Replay chat history
+    for msg in st.session_state.messages:
+        with st.chat_message(msg["role"]):
+            st.markdown(msg["content"])
+            if msg.get("citations"):
+                with st.expander("📎 Citations"):
+                    for c in msg["citations"]:
+                        page_info = f"Page {c['page']}" if c.get("page") is not None else ""
+                        st.markdown(f"**{c['source']}** {page_info}")
+                        if c.get("excerpt"):
+                            st.caption(c["excerpt"])
+            if msg.get("confidence_score") is not None:
+                score = msg["confidence_score"]
+                color = "green" if score >= 0.75 else "orange" if score >= 0.5 else "red"
+                st.markdown(
+                    f"<small>Confidence: <span style='color:{color}'><b>{score:.0%}</b></span></small>",
+                    unsafe_allow_html=True,
+                )
+            if msg.get("disclaimer"):
+                st.caption(f"⚠️ {msg['disclaimer']}")
 
-        with st.chat_message(role):
-            st.markdown(message.content)
-
-    # User input
-    if prompt := st.chat_input("Ask something about your document..."):
-        # Store user message
-        st.session_state.messages.append(HumanMessage(content=prompt))
-
+    # New user input
+    if prompt := st.chat_input("Ask a compliance question..."):
+        st.session_state.messages.append({"role": "user", "content": prompt})
         with st.chat_message("user"):
             st.markdown(prompt)
 
         with st.chat_message("assistant"):
-            with st.spinner("Thinking..."):
-                try:
-                    response = agent.invoke(
-                        {
-                            "messages": [
-                                {
-                                    "role": "user",
-                                    "content": prompt,
-                                }
-                            ]
-                        },
-                        config={
-                            "run_name": "streamlit_chatbot",
-                            "tags": ["chatbot", "retrieval"],
-                        },
+            with st.spinner("Searching regulatory documents..."):
+                res = api_post("/api/v1/query", json={"query": prompt})
+
+            if res is None:
+                st.error("Backend not reachable.")
+            elif res.status_code == 200:
+                data = res.json()
+                answer = data.get("answer", "No answer returned.")
+                citations = data.get("citations", [])
+                confidence = data.get("confidence_score")
+                disclaimer = data.get("disclaimer", "")
+
+                st.markdown(answer)
+
+                if citations:
+                    with st.expander("📎 Citations"):
+                        for c in citations:
+                            page_info = f"Page {c['page']}" if c.get("page") is not None else ""
+                            st.markdown(f"**{c['source']}** {page_info}")
+                            if c.get("excerpt"):
+                                st.caption(c["excerpt"])
+
+                if confidence is not None:
+                    color = "green" if confidence >= 0.75 else "orange" if confidence >= 0.5 else "red"
+                    st.markdown(
+                        f"<small>Confidence: <span style='color:{color}'><b>{confidence:.0%}</b></span></small>",
+                        unsafe_allow_html=True,
                     )
 
-                    ai_message = response["messages"][-1].text
+                if disclaimer:
+                    st.caption(f"⚠️ {disclaimer}")
 
-                except Exception as e:
-                    print(f"Agent Error: {e}")
+                st.session_state.messages.append({
+                    "role": "assistant",
+                    "content": answer,
+                    "citations": citations,
+                    "confidence_score": confidence,
+                    "disclaimer": disclaimer,
+                })
+            else:
+                st.error(res.json().get("detail", "Query failed."))
 
-                    ai_message = (
-                        "⚠️ Sorry, I couldn't access the document right now. "
-                        "Please try again later."
-                    )
-                st.markdown(ai_message)
-
-        # Store assistant response
-        st.session_state.messages.append(
-            AIMessage(content=ai_message)
-        )
     st.stop()
 
 # --- Main page ---
