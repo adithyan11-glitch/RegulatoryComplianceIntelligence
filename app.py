@@ -2,7 +2,6 @@ import streamlit as st
 import requests
 from requests.exceptions import ConnectionError
 from langchain_core.messages import HumanMessage, AIMessage
-from app.retrieval.retrieval import agent
 
 
 API = "http://127.0.0.1:8000"
@@ -61,8 +60,6 @@ if st.session_state.get("go_to_chatbot"):
                     for c in msg["citations"]:
                         page_info = f"Page {c['page']}" if c.get("page") is not None else ""
                         st.markdown(f"**{c['source']}** {page_info}")
-                        if c.get("excerpt"):
-                            st.caption(c["excerpt"])
             if msg.get("confidence_score") is not None:
                 score = msg["confidence_score"]
                 color = "green" if score >= 0.75 else "orange" if score >= 0.5 else "red"
