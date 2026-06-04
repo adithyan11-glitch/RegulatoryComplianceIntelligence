@@ -532,4 +532,4 @@ Possible future improvements:
 
 ## 17. One-Line Summary
 
-Regulatory Compliance Intelligence System is a RAG-based application that allows users to upload regulatory PDFs and ask compliance questions with accurate answers, citations, and confidence scores.
+Regulatory Compliance Intelligence System is a RAG-based application that allows users to upload regulatory PDFs and ask compliance questions with  answers, citations, and confidence scores.
