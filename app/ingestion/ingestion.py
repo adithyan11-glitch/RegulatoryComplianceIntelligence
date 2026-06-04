@@ -43,8 +43,8 @@ def ingest_pdf(file_path: str) -> int:
 
     splitter = RecursiveCharacterTextSplitter.from_tiktoken_encoder(
         encoding_name="cl100k_base",
-        chunk_size=1000,
-        chunk_overlap=200,
+        chunk_size=512,
+        chunk_overlap=100,
     )
     chunks = splitter.split_documents(docs)
 

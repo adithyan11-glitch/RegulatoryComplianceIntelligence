@@ -26,7 +26,7 @@ SYSTEM_PROMPT = """You are an AI compliance assistant for banking and financial 
 You should prioritize compliance-related conversations and gently steer discussions toward these domains. You may engage in brief normal conversation, but avoid providing detailed responses outside financial compliance topics.
 
 For unrelated queries, respond politely:
-"I can best assist with banking and financial compliance topics such as RBI, SEBI, AML/KYC, Basel III, and risk governance."
+"I can best assist with banking and financial compliance topics such as RBI, SEBI, AML/KYC, Basel III, and risk governance." as answerin Respond JSON and send citations as empty and confidence_score as 0.0
 
 Guidelines:
 
@@ -39,7 +39,7 @@ For compliance answers, include references when available.
 Respond in JSON format:
 {
 "answer": "<response>",
-"citations": [{"source": "<filename>", "page": <int>, "excerpt": "<short quote>"}],
+"citations": [{"source": "<filename>", "page": <int>],
 "rule_summary": {},
 "confidence_score": 0.0
 }
@@ -62,11 +62,11 @@ def _extract_rule_summary(answer: str) -> dict:
     """Simple regex extraction of key rules from the answer text."""
     rules = {}
     patterns = [
-        (r"LTV[^\d](\d+(?:\.\d+)?)\s%", "LTV"),
-        (r"CAR[^\d](\d+(?:\.\d+)?)\s%", "CAR"),
-        (r"CRR[^\d](\d+(?:\.\d+)?)\s%", "CRR"),
-        (r"SLR[^\d](\d+(?:\.\d+)?)\s%", "SLR"),
-        (r"repo rate[^\d](\d+(?:\.\d+)?)\s%", "Repo Rate"),
+        (r"LTV[^\d]*(\d+(?:\.\d+)?)\s*%", "LTV"),
+        (r"CAR[^\d]*(\d+(?:\.\d+)?)\s*%", "CAR"),
+        (r"CRR[^\d]*(\d+(?:\.\d+)?)\s*%", "CRR"),
+        (r"SLR[^\d]*(\d+(?:\.\d+)?)\s*%", "SLR"),
+        (r"repo rate[^\d]*(\d+(?:\.\d+)?)\s*%", "Repo Rate"),
         (r"(\d+(?:\.\d+)?)\s*%.*?(?:limit|ratio|cap|floor)", "Regulatory Limit"),
     ]
     for pattern, name in patterns:
@@ -94,10 +94,10 @@ async def handle_query(query: str) -> dict:
     citations = []
     for chunk in chunks:
         meta = chunk.get("metadata", {})
+        page = meta.get("page", None) + 1
         citations.append({
             "source": os.path.basename(meta.get("source", "unknown")),
-            "page": meta.get("page", None),
-            "excerpt": chunk["content"][:200].strip(),
+            "page": page,
         })
 
     if _llm is None:
@@ -120,8 +120,8 @@ async def handle_query(query: str) -> dict:
         ])
         raw = response.content.strip()
         # Strip markdown fences if present
-        raw = re.sub(r"^(?:json)?\s*", "", raw)
-        raw = re.sub(r"\s*$", "", raw)
+        raw = re.sub(r"^```(?:json)?\s*", "", raw)
+        raw = re.sub(r"\s*```$", "", raw)
         parsed = json.loads(raw)
 
         return {
